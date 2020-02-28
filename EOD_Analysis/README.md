@@ -1,4 +1,4 @@
-#EOD Analysis
+# EOD Analysis
 
 This subfolder contains the code and raw data for Picq et al. (2020) analysis of electric organ discharges.  
 
