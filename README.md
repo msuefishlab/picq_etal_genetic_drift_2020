@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/243797817.svg)](https://zenodo.org/badge/latestdoi/243797817)
 # Genetic drift does not sufficiently explain patterns of electric signal variation among populations of the mormyrid electric fish Paramormyrops kingsleyae
 
 Sophie Picq<sup>1</sup>, Joshua Sperling <sup>2</sup>, Catherine J. Cheng<sup>2</sup>, Bruce A. Carlson<sup>3</sup>, Jason R. Gallant <sup> 1* </sup>
