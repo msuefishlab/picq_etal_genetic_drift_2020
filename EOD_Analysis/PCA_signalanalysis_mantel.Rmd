@@ -1,0 +1,228 @@
+---
+title: "PCA_signalanalysis_mantel"
+output: html_document
+---
+# set working directory
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# clean list
+```{r}
+rm(list=ls())
+```
+
+# load data and packages
+```{r}
+require(plyr)
+require(ggplot2)
+require(reshape2)
+require(ggfortify)
+require(factoextra)
+require(vegan)
+library(hexbin)
+library(tidyr)
+
+#Load EOD measurements made in matlab
+eoddata<-read.csv("kingsEODdatafromgenotyping_2016.csv",header=TRUE,sep=",")
+```
+
+#Data formatting and PCA analysis
+```{r}
+#script never measured these variables, so drop them
+drops<-c("tS0","vs0","sS0")
+eoddata<-eoddata[,!names(eoddata) %in% drops]
+eoddata<-na.omit(eoddata)
+
+#zscore the data (as per Original MATLAB script)
+eoddata_scaled<-scale(eoddata[,10:29],center=TRUE,scale=TRUE)
+
+#do the PCA analysis
+pcadata<-princomp(eoddata_scaled)
+
+#Get factor loadings for Table S3
+res.var2 <- get_pca_var(pcadata)
+factor_loadings2=res.var2$contrib
+factor_loadings2
+write.csv(factor_loadings2, 'factor_loadings_tableS3.csv')
+
+pcadata_df<-data.frame(eoddata$fn,eoddata$Valid_Loc_Short,pcadata$scores)
+colnames(pcadata_df)<-c("fn", "loc","c1","c2","c3","c4","c5","c6","c7","c8","c9","c10","c11","c12","c13","c14","c15","c16","c17","c18","c19","c20")
+
+#Plot the PCA
+PCAloc=autoplot(pcadata, scale=0, data=pcadata_df, colour="loc", size=2, frame=TRUE, frame.colour="loc", fill=NULL) +theme_classic()
+PCAloc
+
+#change colors
+PCAloc=PCAloc + scale_color_manual(values=c("#b30000","#feb24c","#8c96c6","#41b6c4", "#addd8e","#238443","#ec7014","#c51b8a","#e31a1c","#fa9fb5","#081d58"))
+```
+
+#calculate centroids of population polygons in the PCA and make Euclidean EOD distance matrix (PCA-derived signal distances) for Gabon and for the subset of Southern populations
+```{r}
+pcadata_df<-data.frame(eoddata$fn,eoddata$Valid_Loc_Short,pcadata$scores)
+colnames(pcadata_df)<-c("fn", "loc","c1","c2","c3","c4","c5","c6","c7","c8","c9","c10","c11","c12","c13","c14","c15","c16","c17","c18","c19","c20")
+
+meanphenotype<-aggregate(pcadata_df[,3:4],list(pcadata_df$loc),mean)
+rownames(meanphenotype)=meanphenotype$Group.1
+loc=rownames(meanphenotype)
+loc=as.factor(loc)
+
+#Euclidean PCA-derived signal distances for the whole country
+phenodist<-vegdist(meanphenotype[,2:3], method="euclidean")
+write.csv(as.matrix(phenodist), "phenodist_PCA.csv")
+
+#Euclidean PCA-derived signal distances for the Subset of Southern populations
+meanphenotypesouth<-meanphenotype[-c(2,9,10),] # remove 
+phenodist_south<-vegdist(meanphenotypesouth[,2:3], method="euclidean")
+write.csv(as.matrix(phenodist_south), "phenodist_PCA_south.csv")
+```
+
+#add population centroids to the PCA plot
+```{r}
+PCAloc_centroids=PCAloc + geom_point(data=meanphenotype, aes(x=c1, y=c2), size=2)
+PCAloc_centroids
+
+ggsave("PCA_loc_centroids.eps", width=30, height=20, units="cm")
+```
+
+#Perform PERMANOVA analysis on PCA-derived signal distances
+```{r}
+pheno_ind_scores<-pcadata_df[,3:4]
+rownames(pheno_ind_scores)=pcadata_df$fn
+loc<-factor(pcadata_df$loc)
+PCA_permanova=adonis(pheno_ind_scores ~ loc, permutations=1000, method='eu')
+PCA_permanova
+```
+
+#Perform PERMANOVA analysis on MDS-derived signal distances
+```{r}
+#load the MDS-derived EOD coordinates
+mdscoordinates=read.csv("mds_eodcoordinates.csv", header=TRUE)
+rownames(mdscoordinates)=1:nrow(mdscoordinates)
+mdscoordinates=mdscoordinates[order(mdscoordinates$pop),]
+mdscoordinates_final=mdscoordinates[,3:4]
+loc=mdscoordinates[,2]
+loc=as.factor(loc)
+MDS_permanova=adonis(mdscoordinates_final~ loc, permutations=1000, method='eu')
+MDS_permanova
+```
+
+#Mantel tests analyses on PCA-derived signal distances: whole Gabon
+```{r}
+#load the genetic, geographic, and regional cluster matrices
+gen1<-read.csv("king_microsats_rousset.csv", header=TRUE)
+row.names(gen1)<-gen1$X
+gen1$X<-NULL
+gendist<-as.dist(gen1)
+
+geo<-read.csv("geo_dist.csv", header=TRUE, row.names=1, check.names=FALSE)
+geo=as.matrix(geo)
+geo.dist=as.dist(geo)
+
+reg<-read.csv("regional_effects.csv", header=TRUE, row.names=1, check.names=FALSE)
+reg=as.matrix(reg)
+regdist=as.dist(reg)
+regdist[is.na(regdist)] <- 0
+
+
+#Genetic-geographic
+mantel(gendist,geo.dist, permutations=1000)
+
+#Signal-genetic
+mantel(gendist,phenodist, permutations=1000)
+
+#Signal-geographic
+mantel(phenodist, geo.dist, permutations=1000)
+
+#Partial correlation
+#genetic - geographic (regional clusters as covariate)
+mantel.partial(gendist,geo.dist, regdist, permutations=1000)
+
+#signal - genetic         (regional clusters as covariate)
+mantel.partial(phenodist, gendist,regdist, permutations=1000)
+
+#signal - geographic   (regional clusters as covariate)
+mantel.partial(phenodist, geo.dist, regdist, permutations=1000)
+```
+
+#Mantel test analyses on MDS-derived signal distances: Whole Gabon
+```{r}
+#load the MDS-derived centroids of population polygons and make Euclidean EOD distance matrix (MDS-derived signal distances) for Gabon an
+mds_centroids=read.csv("mds_centroids.csv", header=TRUE)
+mds_phenodist=vegdist(mds_centroids[,-1], method="euclidean")
+rownames(mds_centroids)=mds_centroids$X
+
+#Genetic-geographic
+mantel(gendist,geo.dist, permutations=1000)
+
+#Signal-genetic
+mantel(gendist,mds_phenodist, permutations=1000)
+
+#Signal-geographic
+mantel(mds_phenodist, geo.dist, permutations=1000)
+
+#Partial correlation
+#genetic - geographic (regional clusters as covariate)
+mantel.partial(gendist,geo.dist, regdist, permutations=1000)
+
+#signal - genetic         (regional clusters as covariate)
+mantel.partial(mds_phenodist, gendist,regdist, permutations=1000)
+
+#signal - geographic   (regional clusters as covariate)
+mantel.partial(mds_phenodist, geo.dist, regdist, permutations=1000)
+
+```
+
+#Mantel test analyses on PCA-derived signal distances: South
+```{r}
+#load the genetic, geographic, and Bongolo Falls matrix
+gen1s<-read.csv("king_microsats_rousset_south.csv", header=TRUE)
+row.names(gen1s)<-gen1s$X
+gen1s$X<-NULL
+gendists<-as.dist(gen1s)
+
+geos<-read.csv("geo_dist_south.csv", header=TRUE, row.names=1, check.names=FALSE)
+geos=as.matrix(geos)
+geo.dists=as.dist(geos)
+
+bongolo<-read.csv("pop_bongolo_matrix.csv", header=TRUE, row.names=1, check.names=FALSE)
+bongolo=as.matrix(bongolo)
+bongolo=as.dist(bongolo)
+
+#Genetic-geographic
+mantel(gendists,geo.dists, permutations=1000)
+
+#Genetic-Bongolo
+mantel(gendists, bongolo, permutations=1000)
+
+#Signal-genetic
+mantel(gendists,phenodist_s, permutations=1000)
+
+#Signal-geographic
+mantel(phenodist_s, geo.dists, permutations=1000)
+
+#signal-Bongolo
+mantel(phenodist_s, bongolo, permutations=1000)
+```
+
+#Mantel test analyses on MDS-derived signal distances: South
+```{r}
+# make Euclidean EOD distance matrix (MDS-derived signal distances) for Southern populations
+mds_centroids_south<-mds_centroids[-c(2,9,10),]
+mds_phenodists=vegdist(mds_centroids_south[,-1], method="euclidean")
+
+#Genetic-geographic
+mantel(gendists,geo.dists, permutations=1000)
+
+#Genetic-Bongolo
+mantel(gendists, bongolo, permutations=1000)
+
+#Signal-genetic
+mantel(gendists,mds_phenodists, permutations=1000)
+
+#Signal-geographic
+mantel(mds_phenodists, geo.dists, permutations=1000)
+
+#signal-Bongolo
+mantel(mds_phenodists, bongolo, permutations=1000)
+```
