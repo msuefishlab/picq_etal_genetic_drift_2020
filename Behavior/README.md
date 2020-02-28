@@ -1,6 +1,6 @@
 # Playback and Discrimination Experiment
 
-This subfolder contains the code and raw data for Picq et al. (2020) Figure 8 and Associated Analyses.  
+This subfolder contains the code for Picq et al. (2020) Figure 8 and Associated Analyses.  
 
 ## Field Behavior (Panel 8a)
 Original code and analysis by Bruce Carlson

@@ -1,6 +1,6 @@
 # EOD Analysis
 
-This subfolder contains the code and raw data for Picq et al. (2020) analysis of electric organ discharges.  
+This subfolder contains the code for Picq et al. (2020) analysis of electric organ discharges.  
 
 This protocol requires MATLAB and R. EODs used in this analysis are available by request from the Cornell Museum of Vertebrates/Macaulay Library of Natural Sounds.  Specimen information is summarized in Table S1 of Supplemental Materials.
 
